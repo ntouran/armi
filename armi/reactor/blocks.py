@@ -773,20 +773,21 @@ class Block(composites.Composite):
         reactor.blueprints.componentBlueprint.ComponentBlueprint : sets the mults
         reactor.blurprints.blockBlueprint.BlockBlueprint.construct : calls this
         """
+        # TODO UPDATE THIS
+        return
         for c in self.getChildren():
-            if len(c) > 1:
-                backgroundVol = c.getVolume()
-                # expect all mults to be temporarily set to blend frac from blueprints
-                blendFrac = c[0].p.mult
-                # remove scaling by mult=blendFrac here
-                childVol = sum(subchild.getVolume() / blendFrac for subchild in c)
-                # mult should be such that childVol/backgroundVol = blendFrac
-                # so: childVol * newMult = blendFrac * backgroundVol
-                newMult = blendFrac * backgroundVol / childVol
-                for subchild in c:
-                    subchild.setDimension("mult", newMult)
-                # shrink background component to fit
-                c.setDimension("mult", c.p.mult * (1 - blendFrac))
+            backgroundVol = c.getVolume()
+            # expect all mults to be temporarily set to blend frac from blueprints
+            blendFrac = c[0].p.mult
+            # remove scaling by mult=blendFrac here
+            childVol = sum(subchild.getVolume() / blendFrac for subchild in c)
+            # mult should be such that childVol/backgroundVol = blendFrac
+            # so: childVol * newMult = blendFrac * backgroundVol
+            newMult = blendFrac * backgroundVol / childVol
+            for subchild in c:
+                subchild.setDimension("mult", newMult)
+            # shrink background component to fit
+            c.setDimension("mult", c.p.mult * (1 - blendFrac))
 
     def completeInitialLoading(self, bolBlock=None):
         """

@@ -72,9 +72,14 @@ class DummyLeaf(composites.Leaf):
     def getBoundingCircleOuterDiameter(self, Tc=None, cold=False):
         return 1.0
 
-    def iterComponents(self, typeSpec=None, exact=False):
-        if self.hasFlags(typeSpec, exact):
-            yield self
+    def getVolume(self):
+        return 0.0
+
+    def getIntegratedMgFlux(self, *args, **kwargs):
+        return 0.0
+
+    def _getReactionRates(self, *args, **kwargs):
+        return {}
 
 
 class TestCompositePattern(unittest.TestCase):

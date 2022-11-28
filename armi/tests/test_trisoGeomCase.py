@@ -112,7 +112,7 @@ class ComponentGroupReactorTests(unittest.TestCase):
 
         # u vol frac within one particle
         actualKernelFrac = self.kernel.p.od**3 / self.opyc.p.od**3
-        self.assertAlmostEqual(self.t guiexpectedKernelFrac, actualKernelFrac)
+        self.assertAlmostEqual(self.expectedKernelFrac, actualKernelFrac)
 
     def test_check_particle_mass(self):
         # mults need to cascade as well. So if you're looking at a single kernel

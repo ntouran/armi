@@ -276,7 +276,7 @@ class ArmiObject(metaclass=CompositeModelType):
       child objects
     * Defines an interface for accessing parents.
 
-    Called "component" in gang of four, this is an ArmiObject here because the word
+    Called "Component" in gang of four, this is an ArmiObject here because the word
     component was already taken in ARMI.
 
     The :py:class:`armi.reactor.parameters.ResolveParametersMeta` metaclass is used to
@@ -516,14 +516,6 @@ class ArmiObject(metaclass=CompositeModelType):
         for paramName, val in new.p.items():
             self.p[paramName] = val
 
-    def getChildren(self, deep=False, generationNum=1, includeMaterials=False):
-        """Return the children of this object."""
-        raise NotImplementedError
-
-    def getChildrenWithFlags(self, typeSpec: TypeSpec, exactMatch=True):
-        """Get all children that have given flags."""
-        raise NotImplementedError
-
     def getComponents(self, typeSpec: TypeSpec = None, exact=False):
         """
         Return all armi.reactor.component.Component within this Composite.
@@ -543,10 +535,6 @@ class ArmiObject(metaclass=CompositeModelType):
         list of Component
             items matching compLabel and exact criteria
         """
-        raise NotImplementedError()
-
-    def iterComponents(self, typeSpec: TypeSpec = None, exact=False):
-        """Yield components one by one in a generator."""
         raise NotImplementedError()
 
     def doChildrenHaveFlags(self, typeSpec: TypeSpec, deep=False):
@@ -785,7 +773,7 @@ class ArmiObject(metaclass=CompositeModelType):
         self.p.type = typ
 
     def getVolume(self):
-        return sum(child.getVolume() for child in self)
+        raise NotImplementedError
 
     def getArea(self, cold=False):
         return sum(child.getArea(cold) for child in self)
@@ -2611,6 +2599,33 @@ class ArmiObject(metaclass=CompositeModelType):
         """
         return getDominantMaterial([self], typeSpec, exact)
 
+    def backUp(self):
+        """
+        Create and store a backup of the state.
+
+        This needed to be overridden due to linked components which actually have a
+        parameter value of another ARMI component.
+        """
+        self._backupCache = (self.cached, self._backupCache)
+        self.cached = {}  # don't .clear(), using reference above!
+        self.p.backUp()
+        if self.spatialGrid:
+            self.spatialGrid.backUp()
+
+    def restoreBackup(self, paramsToApply):
+        """
+        Restore the parameters from previously created backup.
+
+        Parameters
+        ----------
+        paramsToApply : list of ParmeterDefinitions
+            restores the state of all parameters not in `paramsToApply`
+        """
+        self.p.restoreBackup(paramsToApply)
+        self.cached, self._backupCache = self._backupCache
+        if self.spatialGrid:
+            self.spatialGrid.restoreBackup()
+
 
 class Composite(ArmiObject):
     """
@@ -2746,6 +2761,14 @@ class Composite(ArmiObject):
         for c in items:
             self.add(c)
 
+    def getChildrenWithFlags(self, typeSpec: TypeSpec, exactMatch=False):
+        """Get all children of a specific type."""
+        children = []
+        for child in self:
+            if child.hasFlags(typeSpec, exact=exactMatch):
+                children.append(child)
+        return children
+
     def getChildren(
         self, deep=False, generationNum=1, includeMaterials=False, predicate=None
     ):
@@ -2811,19 +2834,7 @@ class Composite(ArmiObject):
                         predicate=predicate,
                     )
                 )
-        if includeMaterials:
-            material = getattr(self, "material", None)
-            if material:
-                children.append(material)
 
-        return children
-
-    def getChildrenWithFlags(self, typeSpec: TypeSpec, exactMatch=False):
-        """Get all children of a specific type."""
-        children = []
-        for child in self:
-            if child.hasFlags(typeSpec, exact=exactMatch):
-                children.append(child)
         return children
 
     def getChildrenOfType(self, typeName):
@@ -2856,7 +2867,8 @@ class Composite(ArmiObject):
         iterator of Component
             items matching typeSpec and exact criteria
         """
-        return (c for child in self for c in child.iterComponents(typeSpec, exact))
+        for child in self:
+            yield from child.iterComponents(typeSpec, exact)
 
     def syncMpiState(self):
         """
@@ -3005,33 +3017,6 @@ class Composite(ArmiObject):
         This should be used in a `with` statement.
         """
         return StateRetainer(self, paramsToApply)
-
-    def backUp(self):
-        """
-        Create and store a backup of the state.
-
-        This needed to be overridden due to linked components which actually have a
-        parameter value of another ARMI component.
-        """
-        self._backupCache = (self.cached, self._backupCache)
-        self.cached = {}  # don't .clear(), using reference above!
-        self.p.backUp()
-        if self.spatialGrid:
-            self.spatialGrid.backUp()
-
-    def restoreBackup(self, paramsToApply):
-        """
-        Restore the parameters from previously created backup.
-
-        Parameters
-        ----------
-        paramsToApply : list of ParmeterDefinitions
-            restores the state of all parameters not in `paramsToApply`
-        """
-        self.p.restoreBackup(paramsToApply)
-        self.cached, self._backupCache = self._backupCache
-        if self.spatialGrid:
-            self.spatialGrid.restoreBackup()
 
     def getLumpedFissionProductsIfNecessary(self, nuclides=None):
         """Return Lumped Fission Product objects that belong to this object or any of its children."""
@@ -3214,19 +3199,36 @@ class Composite(ArmiObject):
             ]
         )
 
+    def getVolume(self):
+        return sum(child.getVolume() for child in self)
 
-class Leaf(Composite):
+
+class Leaf(ArmiObject):
     """Defines behavior for primitive objects in the composition."""
+
+    def __iter__(self):
+        # no children, so stop iteration
+        return iter([])
 
     def getChildren(
         self, deep=False, generationNum=1, includeMaterials=False, predicate=None
     ):
         """Return empty list, representing that this object has no children."""
-        return []
+        children = []
+        if includeMaterials:
+            material = getattr(self, "material", None)
+            if material:
+                children.append(material)
+        return children
 
     def getChildrenWithFlags(self, typeSpec: TypeSpec, exactMatch=True):
         """Return empty list, representing that this object has no children."""
         return []
+
+    def iterComponents(self, typeSpec=None, exact=False):
+        """Yield self, since this is the only object here."""
+        if self.hasFlags(typeSpec, exact):
+            yield self
 
 
 class StateRetainer:
