@@ -295,37 +295,33 @@ class TestXSlibraryMerging(TempFileMixin):
     -----
     This is just a base class, so it isn't run directly.
     """
-
-    @classmethod
-    def setUpClass(cls):
-        cls.libAA = None
-        cls.libAB = None
-        cls.libCombined = None
-        cls.libLumped = None
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.libAA = None
-        cls.libAB = None
-        cls.libCombined = None
-        cls.libLumped = None
-        del cls.libAA
-        del cls.libAB
-        del cls.libCombined
-        del cls.libLumped
-
     def setUp(self):
         TempFileMixin.setUp(self)
         # load a library that is in the ARMI tree. This should
         # be a small library with LFPs, Actinides, structure, and coolant
         for attrName, path in [
-            ("libAA", self.getLibAAPath),
-            ("libAB", self.getLibABPath),
-            ("libCombined", self.getLibAA_ABPath),
-            ("libLumped", self.getLibLumpedPath),
+            (f"{self._testMethodName}libAA", self.getLibAAPath),
+            (f"{self._testMethodName}libAB", self.getLibABPath),
+            (f"{self._testMethodName}libCombined", self.getLibAA_ABPath),
+            (f"{self._testMethodName}libLumped", self.getLibLumpedPath),
         ]:
-            if getattr(self.__class__, attrName) is None:
-                setattr(self.__class__, attrName, self.getReadFunc()(path()))
+            setattr(self, attrName, self.getReadFunc()(path()))
+
+    @property
+    def libAA(self):
+        return getattr(self, f"{self._testMethodName}libAA")
+
+    @property
+    def libAB(self):
+        return getattr(self, f"{self._testMethodName}libAB")
+
+    @property
+    def libCombined(self):
+        return getattr(self, f"{self._testMethodName}libCombined")
+
+    @property
+    def libLumped(self):
+        return getattr(self, f"{self._testMethodName}libLumped")
 
     def getErrorType(self):
         raise NotImplementedError()
@@ -368,16 +364,13 @@ class TestXSlibraryMerging(TempFileMixin):
     def test_mergeEmptyXSLibWithOtherEssentiallyClonesTheOther(self):
         emptyXSLib = xsLibraries.IsotxsLibrary()
         emptyXSLib.merge(self.libAA)
-        self.__class__.libAA = None
         self.getWriteFunc()(emptyXSLib, self.testFileName)
         self.assertTrue(filecmp.cmp(self.getLibAAPath(), self.testFileName))
 
     def test_mergeTwoXSLibFiles(self):
         emptyXSLib = xsLibraries.IsotxsLibrary()
         emptyXSLib.merge(self.libAA)
-        self.__class__.libAA = None
         emptyXSLib.merge(self.libAB)
-        self.__class__.libAB = None
         self.assertEqual(
             set(self.libCombined.nuclideLabels), set(emptyXSLib.nuclideLabels)
         )
@@ -388,9 +381,7 @@ class TestXSlibraryMerging(TempFileMixin):
     def test_canRemoveIsotopes(self):
         emptyXSLib = xsLibraries.IsotxsLibrary()
         emptyXSLib.merge(self.libAA)
-        self.__class__.libAA = None
         emptyXSLib.merge(self.libAB)
-        self.__class__.libAB = None
         for nucId in [
             "ZR93_7",
             "ZR95_7",
